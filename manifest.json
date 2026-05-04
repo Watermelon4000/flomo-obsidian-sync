@@ -1,0 +1,9 @@
+{
+  "id": "flomo-sync",
+  "name": "Flomo Sync",
+  "version": "1.0.0",
+  "minAppVersion": "1.0.0",
+  "description": "Lightweight Flomo to Obsidian sync via API token. No Playwright, no browser, just HTTP.",
+  "author": "watermelon",
+  "isDesktopOnly": false
+}
