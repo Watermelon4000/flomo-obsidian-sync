@@ -509,7 +509,7 @@ class FlomoSyncSettingTab extends PluginSettingTab {
 
     const tokenSetting = new Setting(containerEl)
       .setName('Bearer Token')
-      .setDesc('点击下方「Login with Flomo」自动获取，或手动从 DevTools → Network → Authorization 粘贴')
+      .setDesc('Click "Login with Flomo" below to auto-capture, or paste manually from DevTools → Network → Authorization')
       .addText(text => text
         .setPlaceholder('Bearer 12345678|xxxxxx')
         .setValue(this.plugin.settings.bearerToken)
@@ -521,7 +521,7 @@ class FlomoSyncSettingTab extends PluginSettingTab {
     if (Platform.isDesktop) {
       new Setting(containerEl)
         .setName('Login with Flomo')
-        .setDesc('打开 Flomo 登录窗口，登录后自动获取 Token')
+        .setDesc('Open Flomo login window and auto-capture your token after login')
         .addButton(btn => btn
           .setButtonText('🔑 Login with Flomo')
           .setCta()
@@ -550,7 +550,7 @@ class FlomoSyncSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Flomo Folder')
-      .setDesc('笔记按标签分文件夹保存到 Vault 中')
+      .setDesc('Memos are saved into tag-based subfolders under this root folder')
       .addText(text => text
         .setPlaceholder('flomo')
         .setValue(this.plugin.settings.flomoFolder)
@@ -564,7 +564,7 @@ class FlomoSyncSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Sync on Startup')
-      .setDesc('Obsidian 启动时自动同步')
+      .setDesc('Automatically sync when Obsidian starts')
       .addToggle(toggle => toggle
         .setValue(this.plugin.settings.autoSyncOnStartup)
         .onChange(async (value) => {
@@ -574,7 +574,7 @@ class FlomoSyncSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Sync Interval (minutes)')
-      .setDesc('定时同步间隔（分钟）。设为 0 关闭定时同步')
+      .setDesc('Auto-sync interval in minutes. Set to 0 to disable')
       .addText(text => text
         .setPlaceholder('60')
         .setValue(String(this.plugin.settings.autoSyncIntervalMinutes))
@@ -605,7 +605,7 @@ class FlomoSyncSettingTab extends PluginSettingTab {
     // ── Actions ──
     new Setting(containerEl)
       .setName('Sync Now')
-      .setDesc('手动触发一次同步')
+      .setDesc('Trigger a manual sync now')
       .addButton(btn => btn
         .setButtonText('🔄 Sync Now')
         .setCta()
@@ -616,7 +616,7 @@ class FlomoSyncSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Reset Sync History')
-      .setDesc('清除同步记录，下次同步将重新导入所有笔记')
+      .setDesc('Clear sync history. Next sync will re-import all memos')
       .addButton(btn => btn
         .setButtonText('⚠️ Reset')
         .setWarning()
