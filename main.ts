@@ -432,7 +432,7 @@ export default class FlomoSyncPlugin extends Plugin {
 
 /**
  * Opens a Flomo login page in an Electron BrowserWindow.
- * Intercepts outgoing API requests to capture the Authorization header.
+ * After the user logs in, extracts the auth token from localStorage.
  * Returns the Bearer token on success, or null if the user closes the window.
  */
 async function autoLoginFlomo(): Promise<string | null> {
@@ -441,9 +441,13 @@ async function autoLoginFlomo(): Promise<string | null> {
     return null;
   }
 
-  // Dynamic require for Electron (only available on desktop)
   const electron = require('electron');
-  const { BrowserWindow } = electron.remote || electron;
+  const BrowserWindow = (electron.remote?.BrowserWindow) ?? electron.BrowserWindow;
+
+  if (!BrowserWindow) {
+    new Notice('Flomo: Cannot open login window. Please paste your token manually.');
+    return null;
+  }
 
   return new Promise((resolve) => {
     const win = new BrowserWindow({
@@ -452,34 +456,92 @@ async function autoLoginFlomo(): Promise<string | null> {
       title: 'Login to Flomo',
       webPreferences: {
         nodeIntegration: false,
-        contextIsolation: true,
+        contextIsolation: false,  // Allow executeJavaScript to access page context
       },
     });
 
-    let tokenFound = false;
+    let resolved = false;
+    let pollInterval: ReturnType<typeof setInterval> | null = null;
 
-    // Intercept all outgoing requests to flomoapp.com
-    win.webContents.session.webRequest.onBeforeSendHeaders(
-      { urls: ['https://flomoapp.com/*', 'https://*.flomoapp.com/*'] },
-      (details: any, callback: any) => {
-        const auth = details.requestHeaders['Authorization'] || details.requestHeaders['authorization'];
-        if (auth && !tokenFound) {
-          tokenFound = true;
-          const token = auth.startsWith('Bearer ') ? auth : `Bearer ${auth}`;
-          new Notice('Flomo: Token captured ✓');
-          resolve(token);
-          // Give the page a moment to finish loading before closing
-          setTimeout(() => {
-            if (!win.isDestroyed()) win.close();
-          }, 1000);
-        }
-        callback({ cancel: false, requestHeaders: details.requestHeaders });
+    function cleanup() {
+      if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
       }
-    );
+    }
+
+    // Script to extract the auth token from the Flomo web app
+    const extractTokenScript = `
+      (function() {
+        // Try multiple possible localStorage keys
+        var keys = Object.keys(localStorage || {});
+        for (var i = 0; i < keys.length; i++) {
+          var val = localStorage.getItem(keys[i]);
+          if (val && typeof val === 'string') {
+            // Look for Bearer-style token patterns
+            if (val.match(/^\\d+\\|[A-Za-z0-9]/) || val.match(/^Bearer /)) {
+              return val;
+            }
+            // Try parsing as JSON and looking for token fields
+            try {
+              var obj = JSON.parse(val);
+              if (obj && obj.token) return obj.token;
+              if (obj && obj.access_token) return obj.access_token;
+              if (obj && obj.authorization) return obj.authorization;
+            } catch(e) {}
+          }
+        }
+        // Also check for a cookie-based token
+        var cookies = document.cookie.split(';');
+        for (var j = 0; j < cookies.length; j++) {
+          var c = cookies[j].trim();
+          if (c.startsWith('token=') || c.startsWith('authorization=')) {
+            return c.split('=').slice(1).join('=');
+          }
+        }
+        return null;
+      })()
+    `;
+
+    // Poll for token after each page navigation
+    function startPolling() {
+      if (pollInterval) return;
+      pollInterval = setInterval(async () => {
+        if (resolved || win.isDestroyed()) {
+          cleanup();
+          return;
+        }
+        try {
+          const token = await win.webContents.executeJavaScript(extractTokenScript);
+          if (token && token.length > 10) {
+            resolved = true;
+            cleanup();
+            const bearerToken = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+            console.log(`[Flomo Login] Token found via localStorage (${bearerToken.length} chars)`);
+            new Notice(`Flomo: Token captured ✓ (${bearerToken.length} chars)`);
+            resolve(bearerToken);
+            setTimeout(() => {
+              if (!win.isDestroyed()) win.close();
+            }, 1000);
+          }
+        } catch (e) {
+          // Page might be navigating, ignore
+        }
+      }, 2000);
+    }
+
+    // Start polling after each navigation completes
+    win.webContents.on('did-finish-load', () => {
+      const url = win.webContents.getURL();
+      console.log(`[Flomo Login] Page loaded: ${url}`);
+      // Start polling once we're past the login page
+      startPolling();
+    });
 
     // If user closes window without logging in
     win.on('closed', () => {
-      if (!tokenFound) {
+      cleanup();
+      if (!resolved) {
         resolve(null);
       }
     });
@@ -510,13 +572,18 @@ class FlomoSyncSettingTab extends PluginSettingTab {
     const tokenSetting = new Setting(containerEl)
       .setName('Bearer Token')
       .setDesc('Click "Login with Flomo" below to auto-capture, or paste manually from DevTools → Network → Authorization')
-      .addText(text => text
-        .setPlaceholder('Bearer 12345678|xxxxxx')
-        .setValue(this.plugin.settings.bearerToken)
-        .onChange(async (value) => {
-          this.plugin.settings.bearerToken = value;
-          await this.plugin.saveSettings();
-        }));
+      .addText(text => {
+        text
+          .setPlaceholder('Paste token or use Login button')
+          .setValue(this.plugin.settings.bearerToken)
+          .onChange(async (value) => {
+            this.plugin.settings.bearerToken = value;
+            await this.plugin.saveSettings();
+          });
+        // Hide the token value
+        text.inputEl.type = 'password';
+        text.inputEl.style.width = '100%';
+      });
 
     if (Platform.isDesktop) {
       new Setting(containerEl)
@@ -626,6 +693,26 @@ class FlomoSyncSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
           new Notice('Flomo: Sync history cleared.');
           this.display();
+        }));
+    // ── Feedback ──
+    containerEl.createEl('h3', { text: 'Feedback' });
+    new Setting(containerEl)
+      .setName('Contact')
+      .setDesc('Questions, bugs, or feature requests? Reach out!')
+      .addButton(btn => btn
+        .setButtonText('✉️ hello@delicatewatermelon.com')
+        .onClick(() => {
+          window.open('mailto:hello@delicatewatermelon.com');
+        }));
+
+    new Setting(containerEl)
+      .setName('Support')
+      .setDesc('If you find this plugin useful, consider buying me a coffee ☕')
+      .addButton(btn => btn
+        .setButtonText('☕ Buy Me a Coffee')
+        .setCta()
+        .onClick(() => {
+          window.open('https://buymeacoffee.com/delicatewatermelon');
         }));
   }
 }
