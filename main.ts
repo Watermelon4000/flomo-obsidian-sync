@@ -566,25 +566,6 @@ class FlomoSyncSettingTab extends PluginSettingTab {
 
     containerEl.createEl('h2', { text: 'Flomo Sync Settings' });
 
-    // ── Authentication ──
-    containerEl.createEl('h3', { text: 'Authentication' });
-
-    const tokenSetting = new Setting(containerEl)
-      .setName('Bearer Token')
-      .setDesc('Click "Login with Flomo" below to auto-capture, or paste manually from DevTools → Network → Authorization')
-      .addText(text => {
-        text
-          .setPlaceholder('Paste token or use Login button')
-          .setValue(this.plugin.settings.bearerToken)
-          .onChange(async (value) => {
-            this.plugin.settings.bearerToken = value;
-            await this.plugin.saveSettings();
-          });
-        // Hide the token value
-        text.inputEl.type = 'password';
-        text.inputEl.style.width = '100%';
-      });
-
     if (Platform.isDesktop) {
       new Setting(containerEl)
         .setName('Login with Flomo')
@@ -608,7 +589,7 @@ class FlomoSyncSettingTab extends PluginSettingTab {
               console.error('Flomo auto-login error:', err);
               new Notice(`Flomo: Auto-login failed — ${(err as Error).message}`);
             }
-            this.display(); // Refresh UI
+            this.display();
           }));
     }
 
@@ -705,14 +686,5 @@ class FlomoSyncSettingTab extends PluginSettingTab {
           window.open('mailto:hello@delicatewatermelon.com');
         }));
 
-    new Setting(containerEl)
-      .setName('Support')
-      .setDesc('If you find this plugin useful, consider buying me a coffee ☕')
-      .addButton(btn => btn
-        .setButtonText('☕ Buy Me a Coffee')
-        .setCta()
-        .onClick(() => {
-          window.open('https://buymeacoffee.com/delicatewatermelon');
-        }));
   }
 }
