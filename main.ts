@@ -1,4 +1,4 @@
-import { App, Plugin, PluginSettingTab, Setting, Notice, requestUrl } from 'obsidian';
+import { App, Plugin, PluginSettingTab, Setting, Notice, requestUrl, Platform } from 'obsidian';
 import { createHash } from 'crypto';
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -428,6 +428,66 @@ export default class FlomoSyncPlugin extends Plugin {
   }
 }
 
+// ─── Auto Login (Electron BrowserWindow) ─────────────────────────────
+
+/**
+ * Opens a Flomo login page in an Electron BrowserWindow.
+ * Intercepts outgoing API requests to capture the Authorization header.
+ * Returns the Bearer token on success, or null if the user closes the window.
+ */
+async function autoLoginFlomo(): Promise<string | null> {
+  if (!Platform.isDesktop) {
+    new Notice('Auto-login is only available on desktop.');
+    return null;
+  }
+
+  // Dynamic require for Electron (only available on desktop)
+  const electron = require('electron');
+  const { BrowserWindow } = electron.remote || electron;
+
+  return new Promise((resolve) => {
+    const win = new BrowserWindow({
+      width: 460,
+      height: 700,
+      title: 'Login to Flomo',
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+      },
+    });
+
+    let tokenFound = false;
+
+    // Intercept all outgoing requests to flomoapp.com
+    win.webContents.session.webRequest.onBeforeSendHeaders(
+      { urls: ['https://flomoapp.com/*', 'https://*.flomoapp.com/*'] },
+      (details: any, callback: any) => {
+        const auth = details.requestHeaders['Authorization'] || details.requestHeaders['authorization'];
+        if (auth && !tokenFound) {
+          tokenFound = true;
+          const token = auth.startsWith('Bearer ') ? auth : `Bearer ${auth}`;
+          new Notice('Flomo: Token captured ✓');
+          resolve(token);
+          // Give the page a moment to finish loading before closing
+          setTimeout(() => {
+            if (!win.isDestroyed()) win.close();
+          }, 1000);
+        }
+        callback({ cancel: false, requestHeaders: details.requestHeaders });
+      }
+    );
+
+    // If user closes window without logging in
+    win.on('closed', () => {
+      if (!tokenFound) {
+        resolve(null);
+      }
+    });
+
+    win.loadURL('https://v.flomoapp.com/login');
+  });
+}
+
 // ─── Settings Tab ────────────────────────────────────────────────────
 
 class FlomoSyncSettingTab extends PluginSettingTab {
@@ -444,9 +504,12 @@ class FlomoSyncSettingTab extends PluginSettingTab {
 
     containerEl.createEl('h2', { text: 'Flomo Sync Settings' });
 
-    new Setting(containerEl)
+    // ── Authentication ──
+    containerEl.createEl('h3', { text: 'Authentication' });
+
+    const tokenSetting = new Setting(containerEl)
       .setName('Bearer Token')
-      .setDesc('从 Flomo 网页版 DevTools → Network → 请求头中获取 Authorization 值')
+      .setDesc('点击下方「Login with Flomo」自动获取，或手动从 DevTools → Network → Authorization 粘贴')
       .addText(text => text
         .setPlaceholder('Bearer 12345678|xxxxxx')
         .setValue(this.plugin.settings.bearerToken)
@@ -454,6 +517,36 @@ class FlomoSyncSettingTab extends PluginSettingTab {
           this.plugin.settings.bearerToken = value;
           await this.plugin.saveSettings();
         }));
+
+    if (Platform.isDesktop) {
+      new Setting(containerEl)
+        .setName('Login with Flomo')
+        .setDesc('打开 Flomo 登录窗口，登录后自动获取 Token')
+        .addButton(btn => btn
+          .setButtonText('🔑 Login with Flomo')
+          .setCta()
+          .onClick(async () => {
+            btn.setButtonText('⏳ Waiting...');
+            btn.setDisabled(true);
+            try {
+              const token = await autoLoginFlomo();
+              if (token) {
+                this.plugin.settings.bearerToken = token;
+                await this.plugin.saveSettings();
+                new Notice('Flomo: Token saved ✓ You can sync now.');
+              } else {
+                new Notice('Flomo: Login cancelled.');
+              }
+            } catch (err) {
+              console.error('Flomo auto-login error:', err);
+              new Notice(`Flomo: Auto-login failed — ${(err as Error).message}`);
+            }
+            this.display(); // Refresh UI
+          }));
+    }
+
+    // ── Folder ──
+    containerEl.createEl('h3', { text: 'Storage' });
 
     new Setting(containerEl)
       .setName('Flomo Folder')
@@ -466,6 +559,7 @@ class FlomoSyncSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
         }));
 
+    // ── Auto Sync ──
     containerEl.createEl('h3', { text: 'Auto Sync' });
 
     new Setting(containerEl)
@@ -495,7 +589,7 @@ class FlomoSyncSettingTab extends PluginSettingTab {
           }
         }));
 
-    // Status display
+    // ── Status ──
     containerEl.createEl('h3', { text: 'Status' });
 
     const statusEl = containerEl.createEl('div', { cls: 'flomo-sync-status' });
@@ -503,10 +597,12 @@ class FlomoSyncSettingTab extends PluginSettingTab {
     const lastSync = this.plugin.settings.lastSyncTime
       ? new Date(this.plugin.settings.lastSyncTime).toLocaleString()
       : 'Never';
+    const hasToken = this.plugin.settings.bearerToken ? '✅ Connected' : '❌ Not connected';
+    statusEl.createEl('p', { text: `🔐 ${hasToken}` });
     statusEl.createEl('p', { text: `📊 Synced memos: ${syncedCount}` });
     statusEl.createEl('p', { text: `🕐 Last sync: ${lastSync}` });
 
-    // Action buttons
+    // ── Actions ──
     new Setting(containerEl)
       .setName('Sync Now')
       .setDesc('手动触发一次同步')

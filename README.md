@@ -49,7 +49,14 @@ Then copy `main.js`, `manifest.json`, and `styles.css` to your vault's `.obsidia
 
 ## Setup
 
-### Getting Your Bearer Token
+### Option A: Auto-Login (Recommended, Desktop Only)
+
+1. Open plugin settings
+2. Click **🔑 Login with Flomo**
+3. Log in to your Flomo account in the popup window
+4. Token is captured automatically — done!
+
+### Option B: Manual Token
 
 1. Open [Flomo](https://v.flomoapp.com) in your browser
 2. Open DevTools (F12) → Network tab
@@ -57,7 +64,7 @@ Then copy `main.js`, `manifest.json`, and `styles.css` to your vault's `.obsidia
 4. Find any request to `flomoapp.com/api/` and copy the `Authorization` header value
 5. Paste it into the plugin settings
 
-> **Note**: The token may expire periodically. If sync stops working, grab a fresh token.
+> **Note**: The token may expire periodically. If sync stops working, re-login or grab a fresh token.
 
 ## Settings
 
