@@ -1,9 +1,10 @@
 # Flomo Sync — Obsidian Plugin
 
-Lightweight Flomo → Obsidian sync. No Playwright, no browser automation — just pure HTTP.
+Sync your [Flomo](https://flomoapp.com) memos to Obsidian. Auto-login, tag-based folders, incremental updates.
 
 ## Features
 
+- **One-click login**: Log in to Flomo directly from Obsidian — no manual token copying
 - **Full sync**: Fetches all your Flomo memos and converts them to Markdown
 - **Tag-based folders**: Memos are organized into folders matching your Flomo tag hierarchy
 - **Incremental updates**: Detects new, updated, and deleted memos
@@ -14,20 +15,26 @@ Lightweight Flomo → Obsidian sync. No Playwright, no browser automation — ju
 ## How It Works
 
 ```
-Flomo API → Fetch all memos → Convert HTML to Markdown → Write to Obsidian vault
-                                                            ↓
-                                                    flomo/
-                                                    ├── project/content/
-                                                    │   └── 2026-05-01_07-59-23.md
-                                                    ├── story/dairy/
-                                                    │   └── 2026-04-30_23-15-52.md
-                                                    └── _untagged/
-                                                        └── ...
+Flomo → Login → Fetch all memos → Convert HTML to Markdown → Write to vault
+                                                                ↓
+                                                        flomo/
+                                                        ├── project/content/
+                                                        │   └── 2026-05-01_07-59-23.md
+                                                        ├── story/dairy/
+                                                        │   └── 2026-04-30_23-15-52.md
+                                                        └── _untagged/
+                                                            └── ...
 ```
 
 Each memo becomes a Markdown file named by its creation timestamp. Files are organized into folders based on your Flomo tags. A memo with multiple tags is copied to all matching folders.
 
 ## Installation
+
+### From Community Plugins (coming soon)
+
+1. Open Settings → Community Plugins → Browse
+2. Search for "Flomo Sync"
+3. Install and enable
 
 ### Manual Install
 
@@ -49,28 +56,17 @@ Then copy `main.js`, `manifest.json`, and `styles.css` to your vault's `.obsidia
 
 ## Setup
 
-### Option A: Auto-Login (Recommended, Desktop Only)
-
 1. Open plugin settings
 2. Click **🔑 Login with Flomo**
 3. Log in to your Flomo account in the popup window
 4. Token is captured automatically — done!
 
-### Option B: Manual Token
-
-1. Open [Flomo](https://v.flomoapp.com) in your browser
-2. Open DevTools (F12) → Network tab
-3. Refresh the page
-4. Find any request to `flomoapp.com/api/` and copy the `Authorization` header value
-5. Paste it into the plugin settings
-
-> **Note**: The token may expire periodically. If sync stops working, re-login or grab a fresh token.
+> **Note**: The token may expire periodically. If sync stops working, click Login again.
 
 ## Settings
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| Bearer Token | — | Your Flomo API authorization token |
 | Flomo Folder | `flomo` | Root folder in your vault for synced memos |
 | Sync on Startup | Off | Auto-sync when Obsidian opens |
 | Sync Interval | 60 min | How often to auto-sync (0 = disabled) |
@@ -99,6 +95,20 @@ Your memo content here, converted from HTML to Markdown.
 
 #project/content
 ```
+
+## Disclosures
+
+> **Network access**: This plugin connects to `flomoapp.com` to fetch your memos. All data is stored locally in your Obsidian vault.
+>
+> **Unofficial API**: This plugin uses Flomo's internal web API (the same endpoints used by the Flomo web app). It is **not** an official Flomo integration and may break if Flomo changes their API. Use at your own discretion.
+>
+> **Desktop only**: The auto-login feature requires Electron (Obsidian desktop). This plugin does not work on mobile.
+>
+> **No tracking**: This plugin does not collect any analytics, telemetry, or personal data.
+
+## Feedback
+
+Questions, bugs, or feature requests? Reach out at **hello@delicatewatermelon.com**
 
 ## License
 
