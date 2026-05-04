@@ -112,4 +112,4 @@ Questions, bugs, or feature requests? Reach out at **hello@delicatewatermelon.co
 
 ## License
 
-MIT © [Melon Chen](https://delicatewatermelon.com)
+MIT © [Zihong Chen](https://delicatewatermelon.com)
