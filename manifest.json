@@ -3,7 +3,7 @@
   "name": "Flomo Sync",
   "version": "1.0.0",
   "minAppVersion": "1.0.0",
-  "description": "Sync your Flomo memos to Obsidian. Auto-login, tag-based folders, incremental updates.",
+  "description": "Sync your Flomo memos to your vault. Auto-login, tag-based folders, incremental updates.",
   "author": "Zihong Chen",
   "authorUrl": "https://delicatewatermelon.com",
   "isDesktopOnly": true
