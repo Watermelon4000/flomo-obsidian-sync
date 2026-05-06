@@ -3,13 +3,18 @@ import { createHash } from 'crypto';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
+interface FlomoLinkedMemo {
+  slug: string;
+  content: string;
+}
+
 interface FlomoMemo {
   slug: string;
   content: string;
   tags: Array<{ name: string }>;
   created_at: string;
   updated_at: string;
-  linked_memos?: any[];
+  linked_memos?: FlomoLinkedMemo[];
   files?: Array<{ url: string; name: string }>;
 }
 
@@ -319,29 +324,30 @@ export default class FlomoSyncPlugin extends Plugin {
     await this.loadSettings();
 
     // Ribbon icon
-    this.addRibbonIcon('sync', 'Flomo Sync', async () => {
-      await this.runSync();
+    this.addRibbonIcon('sync', 'Flomo Sync', () => {
+      this.runSync();
     });
 
     // Command: manual sync
     this.addCommand({
-      id: 'flomo-sync-now',
-      name: 'Sync Flomo Now',
-      callback: async () => {
-        await this.runSync();
+      id: 'sync-now',
+      name: 'Sync now',
+      callback: () => {
+        this.runSync();
       },
     });
 
     // Command: full re-sync
     this.addCommand({
-      id: 'flomo-sync-reset',
-      name: 'Reset Flomo Sync History & Re-sync All',
-      callback: async () => {
+      id: 'reset-and-resync',
+      name: 'Reset sync history and re-sync all',
+      callback: () => {
         this.settings.syncedMemos = {};
         this.settings.lastSyncTime = 0;
-        await this.saveSettings();
-        new Notice('Flomo: Sync history cleared. Starting full sync...');
-        await this.runSync();
+        this.saveSettings().then(() => {
+          new Notice('Flomo: Sync history cleared. Starting full sync...');
+          this.runSync();
+        });
       },
     });
 
@@ -350,7 +356,7 @@ export default class FlomoSyncPlugin extends Plugin {
 
     // Auto sync on startup
     if (this.settings.autoSyncOnStartup && this.settings.bearerToken) {
-      setTimeout(() => this.runSync(), 3000);
+      window.setTimeout(() => { this.runSync(); }, 3000);
     }
 
     // Interval sync
@@ -367,7 +373,7 @@ export default class FlomoSyncPlugin extends Plugin {
     this.stopIntervalSync();
     const ms = this.settings.autoSyncIntervalMinutes * 60 * 1000;
     if (ms > 0) {
-      this.syncIntervalId = window.setInterval(() => this.runSync(), ms);
+      this.syncIntervalId = window.setInterval(() => { this.runSync(); }, ms);
       this.registerInterval(this.syncIntervalId);
     }
   }
@@ -381,7 +387,7 @@ export default class FlomoSyncPlugin extends Plugin {
 
   async runSync() {
     if (!this.settings.bearerToken) {
-      new Notice('Flomo Sync: Please set your Bearer token in settings.');
+      new Notice('Flomo sync: Please set your bearer token in settings.');
       return;
     }
 
@@ -390,7 +396,7 @@ export default class FlomoSyncPlugin extends Plugin {
       : `Bearer ${this.settings.bearerToken}`;
 
     try {
-      new Notice('Flomo: Syncing...');
+      new Notice('Flomo: syncing...');
       const memos = await fetchAllMemos(token);
       const result = await syncToVault(this.app, this.settings, memos);
       await this.saveSettings();
@@ -441,11 +447,12 @@ async function autoLoginFlomo(): Promise<string | null> {
     return null;
   }
 
-  const electron = require('electron');
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const electron = window.require('electron');
   const BrowserWindow = (electron.remote?.BrowserWindow) ?? electron.BrowserWindow;
 
   if (!BrowserWindow) {
-    new Notice('Flomo: Cannot open login window. Please paste your token manually.');
+    new Notice('Flomo: cannot open login window. Please paste your token manually.');
     return null;
   }
 
@@ -506,34 +513,35 @@ async function autoLoginFlomo(): Promise<string | null> {
     // Poll for token after each page navigation
     function startPolling() {
       if (pollInterval) return;
-      pollInterval = setInterval(async () => {
+      pollInterval = setInterval(() => {
         if (resolved || win.isDestroyed()) {
           cleanup();
           return;
         }
-        try {
-          const token = await win.webContents.executeJavaScript(extractTokenScript);
-          if (token && token.length > 10) {
-            resolved = true;
-            cleanup();
-            const bearerToken = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
-            console.log(`[Flomo Login] Token found via localStorage (${bearerToken.length} chars)`);
-            new Notice(`Flomo: Token captured ✓ (${bearerToken.length} chars)`);
-            resolve(bearerToken);
-            setTimeout(() => {
-              if (!win.isDestroyed()) win.close();
-            }, 1000);
-          }
-        } catch (e) {
-          // Page might be navigating, ignore
-        }
+        win.webContents.executeJavaScript(extractTokenScript)
+          .then((token: string | null) => {
+            if (token && token.length > 10 && !resolved) {
+              resolved = true;
+              cleanup();
+              const bearerToken = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+              console.debug(`[Flomo Login] Token found via localStorage (${bearerToken.length} chars)`);
+              new Notice(`Flomo: token captured (${bearerToken.length} chars)`);
+              resolve(bearerToken);
+              setTimeout(() => {
+                if (!win.isDestroyed()) win.close();
+              }, 1000);
+            }
+          })
+          .catch(() => {
+            // Page might be navigating, ignore
+          });
       }, 2000);
     }
 
     // Start polling after each navigation completes
     win.webContents.on('did-finish-load', () => {
       const url = win.webContents.getURL();
-      console.log(`[Flomo Login] Page loaded: ${url}`);
+      console.debug(`[Flomo Login] Page loaded: ${url}`);
       // Start polling once we're past the login page
       startPolling();
     });
@@ -564,8 +572,6 @@ class FlomoSyncSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    containerEl.createEl('h2', { text: 'Flomo Sync Settings' });
-
     if (Platform.isDesktop) {
       new Setting(containerEl)
         .setName('Login with Flomo')
@@ -581,23 +587,22 @@ class FlomoSyncSettingTab extends PluginSettingTab {
               if (token) {
                 this.plugin.settings.bearerToken = token;
                 await this.plugin.saveSettings();
-                new Notice('Flomo: Token saved ✓ You can sync now.');
+                new Notice('Flomo: token saved. You can sync now.');
               } else {
-                new Notice('Flomo: Login cancelled.');
+                new Notice('Flomo: login cancelled.');
               }
             } catch (err) {
               console.error('Flomo auto-login error:', err);
-              new Notice(`Flomo: Auto-login failed — ${(err as Error).message}`);
+              new Notice(`Flomo: auto-login failed — ${(err as Error).message}`);
             }
             this.display();
           }));
     }
 
-    // ── Folder ──
-    containerEl.createEl('h3', { text: 'Storage' });
+    new Setting(containerEl).setName('Storage').setHeading();
 
     new Setting(containerEl)
-      .setName('Flomo Folder')
+      .setName('Flomo folder')
       .setDesc('Memos are saved into tag-based subfolders under this root folder')
       .addText(text => text
         .setPlaceholder('flomo')
@@ -607,11 +612,10 @@ class FlomoSyncSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
         }));
 
-    // ── Auto Sync ──
-    containerEl.createEl('h3', { text: 'Auto Sync' });
+    new Setting(containerEl).setName('Auto sync').setHeading();
 
     new Setting(containerEl)
-      .setName('Sync on Startup')
+      .setName('Sync on startup')
       .setDesc('Automatically sync when Obsidian starts')
       .addToggle(toggle => toggle
         .setValue(this.plugin.settings.autoSyncOnStartup)
@@ -621,7 +625,7 @@ class FlomoSyncSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName('Sync Interval (minutes)')
+      .setName('Sync interval (minutes)')
       .setDesc('Auto-sync interval in minutes. Set to 0 to disable')
       .addText(text => text
         .setPlaceholder('60')
@@ -637,25 +641,20 @@ class FlomoSyncSettingTab extends PluginSettingTab {
           }
         }));
 
-    // ── Status ──
-    containerEl.createEl('h3', { text: 'Status' });
+    new Setting(containerEl).setName('Status').setHeading();
 
-    const statusEl = containerEl.createEl('div', { cls: 'flomo-sync-status' });
     const syncedCount = Object.keys(this.plugin.settings.syncedMemos || {}).length;
     const lastSync = this.plugin.settings.lastSyncTime
       ? new Date(this.plugin.settings.lastSyncTime).toLocaleString()
       : 'Never';
     const hasToken = this.plugin.settings.bearerToken ? '✅ Connected' : '❌ Not connected';
-    statusEl.createEl('p', { text: `🔐 ${hasToken}` });
-    statusEl.createEl('p', { text: `📊 Synced memos: ${syncedCount}` });
-    statusEl.createEl('p', { text: `🕐 Last sync: ${lastSync}` });
+    new Setting(containerEl).setName(`🔐 ${hasToken}`).setDesc(`📊 Synced memos: ${syncedCount} · 🕐 Last sync: ${lastSync}`);
 
-    // ── Actions ──
     new Setting(containerEl)
-      .setName('Sync Now')
+      .setName('Sync now')
       .setDesc('Trigger a manual sync now')
       .addButton(btn => btn
-        .setButtonText('🔄 Sync Now')
+        .setButtonText('🔄 Sync now')
         .setCta()
         .onClick(async () => {
           await this.plugin.runSync();
@@ -663,7 +662,7 @@ class FlomoSyncSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName('Reset Sync History')
+      .setName('Reset sync history')
       .setDesc('Clear sync history. Next sync will re-import all memos')
       .addButton(btn => btn
         .setButtonText('⚠️ Reset')
@@ -672,11 +671,11 @@ class FlomoSyncSettingTab extends PluginSettingTab {
           this.plugin.settings.syncedMemos = {};
           this.plugin.settings.lastSyncTime = 0;
           await this.plugin.saveSettings();
-          new Notice('Flomo: Sync history cleared.');
+          new Notice('Flomo: sync history cleared.');
           this.display();
         }));
-    // ── Feedback ──
-    containerEl.createEl('h3', { text: 'Feedback' });
+
+    new Setting(containerEl).setName('Feedback').setHeading();
     new Setting(containerEl)
       .setName('Contact')
       .setDesc('Questions, bugs, or feature requests? Reach out!')
