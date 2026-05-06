@@ -324,8 +324,8 @@ export default class FlomoSyncPlugin extends Plugin {
     await this.loadSettings();
 
     // Ribbon icon
-    this.addRibbonIcon('sync', 'Flomo Sync', () => {
-      this.runSync();
+    this.addRibbonIcon('sync', 'Flomo sync', () => {
+      void this.runSync();
     });
 
     // Command: manual sync
@@ -333,7 +333,7 @@ export default class FlomoSyncPlugin extends Plugin {
       id: 'sync-now',
       name: 'Sync now',
       callback: () => {
-        this.runSync();
+        void this.runSync();
       },
     });
 
@@ -344,9 +344,9 @@ export default class FlomoSyncPlugin extends Plugin {
       callback: () => {
         this.settings.syncedMemos = {};
         this.settings.lastSyncTime = 0;
-        this.saveSettings().then(() => {
-          new Notice('Flomo: Sync history cleared. Starting full sync...');
-          this.runSync();
+        void this.saveSettings().then(() => {
+          new Notice('Flomo: sync history cleared. Starting full sync...');
+          void this.runSync();
         });
       },
     });
@@ -356,7 +356,7 @@ export default class FlomoSyncPlugin extends Plugin {
 
     // Auto sync on startup
     if (this.settings.autoSyncOnStartup && this.settings.bearerToken) {
-      window.setTimeout(() => { this.runSync(); }, 3000);
+      window.setTimeout(() => { void this.runSync(); }, 3000);
     }
 
     // Interval sync
@@ -373,7 +373,7 @@ export default class FlomoSyncPlugin extends Plugin {
     this.stopIntervalSync();
     const ms = this.settings.autoSyncIntervalMinutes * 60 * 1000;
     if (ms > 0) {
-      this.syncIntervalId = window.setInterval(() => { this.runSync(); }, ms);
+      this.syncIntervalId = window.setInterval(() => { void this.runSync(); }, ms);
       this.registerInterval(this.syncIntervalId);
     }
   }
@@ -387,7 +387,7 @@ export default class FlomoSyncPlugin extends Plugin {
 
   async runSync() {
     if (!this.settings.bearerToken) {
-      new Notice('Flomo sync: Please set your bearer token in settings.');
+      new Notice('Flomo sync: please set your bearer token in settings.');
       return;
     }
 
@@ -447,7 +447,6 @@ async function autoLoginFlomo(): Promise<string | null> {
     return null;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const electron = window.require('electron');
   const BrowserWindow = (electron.remote?.BrowserWindow) ?? electron.BrowserWindow;
 
@@ -577,10 +576,10 @@ class FlomoSyncSettingTab extends PluginSettingTab {
         .setName('Login with Flomo')
         .setDesc('Open Flomo login window and auto-capture your token after login')
         .addButton(btn => btn
-          .setButtonText('🔑 Login with Flomo')
+          .setButtonText('🔑 Login')
           .setCta()
           .onClick(async () => {
-            btn.setButtonText('⏳ Waiting...');
+            btn.setButtonText('⏳ Waiting…');
             btn.setDisabled(true);
             try {
               const token = await autoLoginFlomo();
@@ -605,7 +604,7 @@ class FlomoSyncSettingTab extends PluginSettingTab {
       .setName('Flomo folder')
       .setDesc('Memos are saved into tag-based subfolders under this root folder')
       .addText(text => text
-        .setPlaceholder('flomo')
+        .setPlaceholder('Folder name')
         .setValue(this.plugin.settings.flomoFolder)
         .onChange(async (value) => {
           this.plugin.settings.flomoFolder = value || 'flomo';
@@ -654,7 +653,7 @@ class FlomoSyncSettingTab extends PluginSettingTab {
       .setName('Sync now')
       .setDesc('Trigger a manual sync now')
       .addButton(btn => btn
-        .setButtonText('🔄 Sync now')
+        .setButtonText('🔄 Sync')
         .setCta()
         .onClick(async () => {
           await this.plugin.runSync();
@@ -665,7 +664,7 @@ class FlomoSyncSettingTab extends PluginSettingTab {
       .setName('Reset sync history')
       .setDesc('Clear sync history. Next sync will re-import all memos')
       .addButton(btn => btn
-        .setButtonText('⚠️ Reset')
+        .setButtonText('⚠️ Reset history')
         .setWarning()
         .onClick(async () => {
           this.plugin.settings.syncedMemos = {};
