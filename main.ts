@@ -573,8 +573,8 @@ class FlomoSyncSettingTab extends PluginSettingTab {
 
     if (Platform.isDesktop) {
       new Setting(containerEl)
-        .setName('Login with Flomo')
-        .setDesc('Open Flomo login window and auto-capture your token after login')
+        .setName('Login with flomo')
+        .setDesc('Open flomo login window and auto-capture your token after login')
         .addButton(btn => btn
           .setButtonText('🔑 Login')
           .setCta()
@@ -664,7 +664,7 @@ class FlomoSyncSettingTab extends PluginSettingTab {
       .setName('Reset sync history')
       .setDesc('Clear sync history. Next sync will re-import all memos')
       .addButton(btn => btn
-        .setButtonText('⚠️ Reset history')
+        .setButtonText('⚠️ reset history')
         .setWarning()
         .onClick(async () => {
           this.plugin.settings.syncedMemos = {};
