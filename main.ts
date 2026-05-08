@@ -576,10 +576,10 @@ class FlomoSyncSettingTab extends PluginSettingTab {
         .setName('Login with flomo')
         .setDesc('Open flomo login window and auto-capture your token after login')
         .addButton(btn => btn
-          .setButtonText('🔑 Login')
+          .setButtonText('Login')
           .setCta()
           .onClick(async () => {
-            btn.setButtonText('⏳ Waiting…');
+            btn.setButtonText('Waiting…');
             btn.setDisabled(true);
             try {
               const token = await autoLoginFlomo();
@@ -653,7 +653,7 @@ class FlomoSyncSettingTab extends PluginSettingTab {
       .setName('Sync now')
       .setDesc('Trigger a manual sync now')
       .addButton(btn => btn
-        .setButtonText('🔄 Sync')
+        .setButtonText('Sync')
         .setCta()
         .onClick(async () => {
           await this.plugin.runSync();
@@ -664,7 +664,7 @@ class FlomoSyncSettingTab extends PluginSettingTab {
       .setName('Reset sync history')
       .setDesc('Clear sync history. Next sync will re-import all memos')
       .addButton(btn => btn
-        .setButtonText('⚠️ reset history')
+        .setButtonText('Reset')
         .setWarning()
         .onClick(async () => {
           this.plugin.settings.syncedMemos = {};
