@@ -1,6 +1,31 @@
 import { App, Plugin, PluginSettingTab, Setting, Notice, requestUrl, Platform } from 'obsidian';
 import { createHash } from 'crypto';
 
+// ─── Electron type declarations (desktop only) ──────────────────────
+
+interface ElectronWebContents {
+  on(event: string, listener: (...args: unknown[]) => void): void;
+  executeJavaScript(code: string): Promise<string | null>;
+  getURL(): string;
+}
+
+interface ElectronBrowserWindow {
+  webContents: ElectronWebContents;
+  on(event: string, listener: (...args: unknown[]) => void): void;
+  loadURL(url: string): void;
+  close(): void;
+  isDestroyed(): boolean;
+}
+
+interface ElectronBrowserWindowConstructor {
+  new (options: Record<string, unknown>): ElectronBrowserWindow;
+}
+
+interface ElectronModule {
+  remote?: { BrowserWindow?: ElectronBrowserWindowConstructor };
+  BrowserWindow?: ElectronBrowserWindowConstructor;
+}
+
 // ─── Types ───────────────────────────────────────────────────────────
 
 interface FlomoLinkedMemo {
@@ -89,7 +114,7 @@ async function fetchMemos(token: string, latestSlug?: string, latestUpdatedAt?: 
     headers: { Authorization: token },
   });
 
-  const data = resp.json;
+  const data = resp.json as { code: number; data?: FlomoMemo[] };
   if (data.code !== 0) {
     throw new Error(`Flomo API error: ${JSON.stringify(data)}`);
   }
@@ -356,7 +381,7 @@ export default class FlomoSyncPlugin extends Plugin {
 
     // Auto sync on startup
     if (this.settings.autoSyncOnStartup && this.settings.bearerToken) {
-      window.setTimeout(() => { void this.runSync(); }, 3000);
+      activeWindow.setTimeout(() => { void this.runSync(); }, 3000);
     }
 
     // Interval sync
@@ -373,14 +398,14 @@ export default class FlomoSyncPlugin extends Plugin {
     this.stopIntervalSync();
     const ms = this.settings.autoSyncIntervalMinutes * 60 * 1000;
     if (ms > 0) {
-      this.syncIntervalId = window.setInterval(() => { void this.runSync(); }, ms);
+      this.syncIntervalId = activeWindow.setInterval(() => { void this.runSync(); }, ms);
       this.registerInterval(this.syncIntervalId);
     }
   }
 
   stopIntervalSync() {
     if (this.syncIntervalId !== null) {
-      window.clearInterval(this.syncIntervalId);
+      activeWindow.clearInterval(this.syncIntervalId);
       this.syncIntervalId = null;
     }
   }
@@ -447,8 +472,9 @@ async function autoLoginFlomo(): Promise<string | null> {
     return null;
   }
 
-  const electron = window.require('electron');
-  const BrowserWindow = (electron.remote?.BrowserWindow) ?? electron.BrowserWindow;
+  const electron = window.require('electron') as ElectronModule;
+  const BrowserWindow: ElectronBrowserWindowConstructor | undefined =
+    electron.remote?.BrowserWindow ?? electron.BrowserWindow;
 
   if (!BrowserWindow) {
     new Notice('Flomo: cannot open login window. Please paste your token manually.');
@@ -456,7 +482,7 @@ async function autoLoginFlomo(): Promise<string | null> {
   }
 
   return new Promise((resolve) => {
-    const win = new BrowserWindow({
+    const win: ElectronBrowserWindow = new BrowserWindow({
       width: 460,
       height: 700,
       title: 'Login to Flomo',
@@ -467,11 +493,11 @@ async function autoLoginFlomo(): Promise<string | null> {
     });
 
     let resolved = false;
-    let pollInterval: ReturnType<typeof setInterval> | null = null;
+    let pollInterval: ReturnType<typeof activeWindow.setInterval> | null = null;
 
     function cleanup() {
       if (pollInterval) {
-        clearInterval(pollInterval);
+        activeWindow.clearInterval(pollInterval);
         pollInterval = null;
       }
     }
@@ -512,7 +538,7 @@ async function autoLoginFlomo(): Promise<string | null> {
     // Poll for token after each page navigation
     function startPolling() {
       if (pollInterval) return;
-      pollInterval = setInterval(() => {
+      pollInterval = activeWindow.setInterval(() => {
         if (resolved || win.isDestroyed()) {
           cleanup();
           return;
@@ -526,7 +552,7 @@ async function autoLoginFlomo(): Promise<string | null> {
               console.debug(`[Flomo Login] Token found via localStorage (${bearerToken.length} chars)`);
               new Notice(`Flomo: token captured (${bearerToken.length} chars)`);
               resolve(bearerToken);
-              setTimeout(() => {
+              activeWindow.setTimeout(() => {
                 if (!win.isDestroyed()) win.close();
               }, 1000);
             }
